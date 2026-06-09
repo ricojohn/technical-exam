@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class EmployeeController extends Controller
@@ -19,36 +20,65 @@ class EmployeeController extends Controller
             ->orderBy('employees.name')
             ->get();
 
-        return view('employees.index', compact('employees'));
-    }
-
-    public function create(): View
-    {
         $departments = Department::query()->orderBy('name')->get();
 
-        return view('employees.create', compact('departments'));
+        return view('employees.index', compact('employees', 'departments'));
     }
 
-    public function store(EmployeeRequest $request): RedirectResponse
+    public function create(): RedirectResponse
     {
-        Employee::query()->create($request->validated());
+        return redirect()->route('employees.index');
+    }
+
+    public function store(EmployeeRequest $request): JsonResponse|RedirectResponse
+    {
+        $employee = Employee::query()->create($request->validated());
+        $employee->load('department');
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee created successfully.',
+                'id' => $employee->id,
+                'row' => view('employees._row', ['employee' => $employee])->render(),
+            ]);
+        }
 
         return redirect()
             ->route('employees.index')
             ->with('success', 'Employee created successfully.');
     }
 
-    public function edit(Employee $employee): View
+    public function edit(Request $request, Employee $employee): JsonResponse|RedirectResponse
     {
-        $employee->load('department');
-        $departments = Department::query()->orderBy('name')->get();
+        if ($request->wantsJson()) {
+            return response()->json([
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'email' => $employee->email,
+                'position' => $employee->position,
+                'salary' => $employee->salary,
+                'department_id' => $employee->department_id,
+            ]);
+        }
 
-        return view('employees.edit', compact('employee', 'departments'));
+        return redirect()->route('employees.index');
     }
 
-    public function update(EmployeeRequest $request, Employee $employee): RedirectResponse
+    public function update(EmployeeRequest $request, Employee $employee): JsonResponse|RedirectResponse
     {
         $employee->update($request->validated());
+        $employee->load('department');
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee updated successfully.',
+                'id' => $employee->id,
+                'mode' => 'update',
+                'row' => view('employees._row', ['employee' => $employee])->render(),
+            ]);
+        }
 
         return redirect()
             ->route('employees.index')
